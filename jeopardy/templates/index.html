@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JEOPARDY — O'z O'ying</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --neon-cyan: #00fff5;
+    --neon-pink: #ff006e;
+    --neon-yellow: #ffdd00;
+    --neon-purple: #bf5af2;
+    --dark-bg: #080810;
+    --dark-card: #0d0d1a;
+    --dark-border: #1a1a35;
+    --text-main: #e8e8ff;
+    --text-dim: #6666aa;
+    --glow-cyan: 0 0 20px rgba(0,255,245,0.5), 0 0 60px rgba(0,255,245,0.2);
+    --glow-pink: 0 0 20px rgba(255,0,110,0.5), 0 0 60px rgba(255,0,110,0.2);
+    --glow-yellow: 0 0 20px rgba(255,221,0,0.5), 0 0 60px rgba(255,221,0,0.2);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--dark-bg);
+    color: var(--text-main);
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,245,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,245,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    animation: gridMove 20s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+  }
+  @keyframes gridMove {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(60px); }
+  }
+  /* Radial glow in center */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 800px; height: 800px;
+    background: radial-gradient(ellipse, rgba(0,255,245,0.04) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative; z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+
+  /* Logo */
+  .logo-wrap {
+    text-align: center;
+    margin-bottom: 60px;
+    animation: fadeDown 0.8s ease both;
+  }
+  .logo-sub {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    letter-spacing: 8px;
+    color: var(--neon-cyan);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    opacity: 0.7;
+  }
+  .logo-main {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(40px, 8vw, 80px);
+    font-weight: 900;
+    letter-spacing: -2px;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--neon-cyan), var(--neon-pink), var(--neon-yellow));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 30px rgba(0,255,245,0.4));
+    animation: glitch 8s infinite;
+  }
+  @keyframes glitch {
+    0%,96%,100% { transform: none; filter: drop-shadow(0 0 30px rgba(0,255,245,0.4)); }
+    97% { transform: translate(-2px,0) skew(-1deg); filter: drop-shadow(-2px 0 var(--neon-pink)); }
+    98% { transform: translate(2px,0) skew(1deg); filter: drop-shadow(2px 0 var(--neon-cyan)); }
+    99% { transform: none; }
+  }
+  .logo-tagline {
+    font-size: 16px;
+    color: var(--text-dim);
+    letter-spacing: 3px;
+    margin-top: 12px;
+  }
+
+  /* Card */
+  .card {
+    width: 100%;
+    max-width: 480px;
+    background: var(--dark-card);
+    border: 1px solid var(--dark-border);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    animation: fadeUp 0.8s 0.2s ease both;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink), var(--neon-yellow));
+    animation: scanBar 3s ease-in-out infinite;
+  }
+  @keyframes scanBar {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Tabs */
+  .tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid var(--dark-border);
+  }
+  .tab-btn {
+    padding: 18px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+  }
+  .tab-btn.active {
+    color: var(--neon-cyan);
+    background: rgba(0,255,245,0.05);
+  }
+  .tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 0; right: 0;
+    height: 2px;
+    background: var(--neon-cyan);
+    box-shadow: var(--glow-cyan);
+  }
+  .tab-btn:hover:not(.active) { color: var(--text-main); }
+
+  /* Tab content */
+  .tab-content { display: none; padding: 36px; }
+  .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: none; } }
+  @keyframes fadeDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: none; } }
+
+  /* Create tab */
+  .create-desc {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 15px;
+    line-height: 1.6;
+    margin-bottom: 28px;
+  }
+  .create-desc strong { color: var(--neon-cyan); }
+
+  /* Form elements */
+  .field { margin-bottom: 20px; }
+  .field label {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+  .field input, .field select {
+    width: 100%;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--dark-border);
+    border-radius: 2px;
+    padding: 14px 16px;
+    color: var(--text-main);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    outline: none;
+    transition: all 0.3s;
+  }
+  .field input:focus, .field select:focus {
+    border-color: var(--neon-cyan);
+    background: rgba(0,255,245,0.03);
+    box-shadow: 0 0 0 1px rgba(0,255,245,0.2);
+  }
+  .field select option { background: #0d0d1a; }
+
+  /* Role selector */
+  .role-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .role-btn {
+    padding: 14px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--dark-border);
+    border-radius: 2px;
+    color: var(--text-dim);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: center;
+  }
+  .role-btn .icon { display: block; font-size: 24px; margin-bottom: 4px; }
+  .role-btn.selected {
+    border-color: var(--neon-pink);
+    color: var(--neon-pink);
+    background: rgba(255,0,110,0.05);
+    box-shadow: inset 0 0 20px rgba(255,0,110,0.05);
+  }
+  .role-btn:hover:not(.selected) { border-color: rgba(255,255,255,0.2); color: var(--text-main); }
+
+  /* Buttons */
+  .btn-primary {
+    width: 100%;
+    padding: 16px;
+    background: transparent;
+    border: 1px solid var(--neon-cyan);
+    border-radius: 2px;
+    color: var(--neon-cyan);
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-primary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--neon-cyan);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    z-index: 0;
+  }
+  .btn-primary:hover::before { transform: translateX(0); }
+  .btn-primary:hover { color: var(--dark-bg); box-shadow: var(--glow-cyan); }
+  .btn-primary span { position: relative; z-index: 1; }
+  .btn-primary:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    border-color: var(--text-dim);
+    color: var(--text-dim);
+  }
+  .btn-primary:disabled::before { display: none; }
+
+  .btn-host {
+    width: 100%;
+    padding: 20px;
+    background: transparent;
+    border: 1px solid var(--neon-yellow);
+    border-radius: 2px;
+    color: var(--neon-yellow);
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-host::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: var(--neon-yellow);
+    transform: translateX(-100%);
+    transition: transform 0.3s;
+    z-index: 0;
+  }
+  .btn-host:hover::before { transform: translateX(0); }
+  .btn-host:hover { color: var(--dark-bg); box-shadow: var(--glow-yellow); }
+  .btn-host span { position: relative; z-index: 1; }
+
+  /* Error */
+  .error-msg {
+    background: rgba(255,0,110,0.1);
+    border: 1px solid rgba(255,0,110,0.3);
+    border-radius: 2px;
+    padding: 12px 16px;
+    color: var(--neon-pink);
+    font-size: 14px;
+    margin-bottom: 16px;
+    display: none;
+    animation: fadeIn 0.3s;
+  }
+  .error-msg.show { display: block; }
+
+  /* Room code display */
+  .room-code-display {
+    text-align: center;
+    padding: 24px;
+    background: rgba(0,255,245,0.03);
+    border: 1px solid rgba(0,255,245,0.2);
+    border-radius: 2px;
+    margin-bottom: 20px;
+    display: none;
+  }
+  .room-code-display.show { display: block; animation: fadeIn 0.3s; }
+  .room-code-label {
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .room-code-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 42px;
+    font-weight: 900;
+    color: var(--neon-cyan);
+    letter-spacing: 8px;
+    text-shadow: var(--glow-cyan);
+  }
+  .room-code-hint {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+
+  /* Divider */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0;
+    color: var(--text-dim);
+    font-size: 11px;
+    letter-spacing: 2px;
+  }
+  .divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--dark-border);
+  }
+
+  /* Scanline overlay */
+  .scanlines {
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.05) 2px, rgba(0,0,0,0.05) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  .corner-decor {
+    position: fixed;
+    width: 80px; height: 80px;
+    opacity: 0.3;
+  }
+  .corner-decor.tl { top: 20px; left: 20px; border-top: 1px solid var(--neon-cyan); border-left: 1px solid var(--neon-cyan); }
+  .corner-decor.tr { top: 20px; right: 20px; border-top: 1px solid var(--neon-cyan); border-right: 1px solid var(--neon-cyan); }
+  .corner-decor.bl { bottom: 20px; left: 20px; border-bottom: 1px solid var(--neon-cyan); border-left: 1px solid var(--neon-cyan); }
+  .corner-decor.br { bottom: 20px; right: 20px; border-bottom: 1px solid var(--neon-cyan); border-right: 1px solid var(--neon-cyan); }
+
+  .loading-dots::after {
+    content: '';
+    animation: dots 1.5s infinite;
+  }
+  @keyframes dots {
+    0%,20% { content: '.'; }
+    40% { content: '..'; }
+    60%,100% { content: '...'; }
+  }
+</style>
+</head>
+<body>
+<div class="scanlines"></div>
+<div class="corner-decor tl"></div>
+<div class="corner-decor tr"></div>
+<div class="corner-decor bl"></div>
+<div class="corner-decor br"></div>
+
+<div class="container">
+  <div class="logo-wrap">
+    <div class="logo-sub">Real Vaqtli Viktorina</div>
+    <div class="logo-main">JEOPARDY</div>
+    <div class="logo-tagline">O ' Z &nbsp;&nbsp; O ' Y I N G</div>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('join')" id="tab-join">O'yinga Kirish</button>
+      <button class="tab-btn" onclick="switchTab('create')" id="tab-create">Xona Yaratish</button>
+    </div>
+
+    <!-- JOIN TAB -->
+    <div class="tab-content active" id="content-join">
+      <div class="error-msg" id="join-error"></div>
+
+      <div class="field">
+        <label>Xona Kodi</label>
+        <input type="text" id="room-code" placeholder="AB7X" maxlength="4"
+               oninput="this.value=this.value.toUpperCase()" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label>Foydalanuvchi Nomi</label>
+        <input type="text" id="join-username" placeholder="IsmingizNi" maxlength="20" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label>Rol</label>
+      </div>
+      <div class="role-selector">
+        <div class="role-btn selected" onclick="selectRole('player')" id="role-player">
+          <span class="icon">🎮</span>O'yinchi
+        </div>
+        <div class="role-btn" onclick="selectRole('spectator')" id="role-spectator">
+          <span class="icon">👁</span>Tomoshabin
+        </div>
+      </div>
+
+      <button class="btn-primary" onclick="joinGame()" id="join-btn" disabled>
+        <span>Qo'shilish</span>
+      </button>
+    </div>
+
+    <!-- CREATE TAB -->
+    <div class="tab-content" id="content-create">
+      <div class="create-desc">
+        Yangi o'yin xonasi yarating va <strong>xona kodini</strong> o'yinchilar bilan ulashing.
+      </div>
+
+      <div class="error-msg" id="create-error"></div>
+
+      <div class="field">
+        <label>Olib Boruvchi Nomi</label>
+        <input type="text" id="host-username" placeholder="HostIsmi" maxlength="20" autocomplete="off">
+      </div>
+
+      <div class="room-code-display" id="room-code-display">
+        <div class="room-code-label">Xona Kodi</div>
+        <div class="room-code-value" id="room-code-val"></div>
+        <div class="room-code-hint">O'yinchilar bilan ulashing</div>
+      </div>
+
+      <button class="btn-host" onclick="createRoom()" id="create-btn">
+        <span id="create-btn-text">Xona Yaratish</span>
+      </button>
+
+      <div class="divider" id="enter-host-div" style="display:none">YUQORIDAGi kodni nusxalang</div>
+
+      <button class="btn-primary" id="go-host-btn" style="display:none" onclick="goToHost()">
+        <span>Host Paneliga O'tish →</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let selectedRole = 'player';
+  let createdRoomCode = '';
+  let createdHostUsername = '';
+
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    document.getElementById('content-' + tab).classList.add('active');
+  }
+
+  function selectRole(role) {
+    selectedRole = role;
+    document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById('role-' + role).classList.add('selected');
+  }
+
+  // Enable/disable join button
+  ['room-code', 'join-username'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
+      const code = document.getElementById('room-code').value.trim();
+      const name = document.getElementById('join-username').value.trim();
+      document.getElementById('join-btn').disabled = !(code.length === 4 && name.length >= 1);
+    });
+  });
+
+  function showError(elemId, msg) {
+    const el = document.getElementById(elemId);
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 4000);
+  }
+
+  async function createRoom() {
+    const username = document.getElementById('host-username').value.trim();
+    if (!username) { showError('create-error', 'Olib boruvchi nomini kiriting'); return; }
+
+    const btn = document.getElementById('create-btn');
+    const btnText = document.getElementById('create-btn-text');
+    btn.disabled = true;
+    btnText.innerHTML = '<span class="loading-dots">Yaratilmoqda</span>';
+
+    try {
+      const res = await fetch('/api/create-room', { method: 'POST' });
+      const data = await res.json();
+      createdRoomCode = data.room_code;
+      createdHostUsername = username;
+
+      document.getElementById('room-code-val').textContent = createdRoomCode;
+      document.getElementById('room-code-display').classList.add('show');
+      document.getElementById('enter-host-div').style.display = 'flex';
+      document.getElementById('go-host-btn').style.display = 'block';
+      btnText.textContent = 'Yangi Xona';
+      btn.disabled = false;
+    } catch (e) {
+      showError('create-error', 'Server bilan aloqa yo\'q. Qayta urinib ko\'ring.');
+      btn.disabled = false;
+      btnText.textContent = 'Xona Yaratish';
+    }
+  }
+
+  function goToHost() {
+    sessionStorage.setItem('jeopardy_room', createdRoomCode);
+    sessionStorage.setItem('jeopardy_username', createdHostUsername);
+    sessionStorage.setItem('jeopardy_role', 'host');
+    window.location.href = '/host';
+  }
+
+  async function joinGame() {
+    const code = document.getElementById('room-code').value.trim().toUpperCase();
+    const username = document.getElementById('join-username').value.trim();
+    if (!code || !username) return;
+
+    const btn = document.getElementById('join-btn');
+    btn.disabled = true;
+    btn.querySelector('span').innerHTML = '<span class="loading-dots">Ulanmoqda</span>';
+
+    sessionStorage.setItem('jeopardy_room', code);
+    sessionStorage.setItem('jeopardy_username', username);
+    sessionStorage.setItem('jeopardy_role', selectedRole);
+    window.location.href = '/play';
+  }
+
+  // Enter key support
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const activeTab = document.querySelector('.tab-content.active').id;
+      if (activeTab === 'content-join') joinGame();
+      else if (activeTab === 'content-create') {
+        if (!createdRoomCode) createRoom();
+        else goToHost();
+      }
+    }
+  });
+</script>
+</body>
+</html>

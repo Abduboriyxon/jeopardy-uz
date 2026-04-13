@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HOST — Jeopardy</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --neon-cyan: #00fff5;
+    --neon-pink: #ff006e;
+    --neon-yellow: #ffdd00;
+    --neon-green: #00ff88;
+    --neon-purple: #bf5af2;
+    --dark-bg: #080810;
+    --dark-card: #0d0d1a;
+    --dark-panel: #0a0a18;
+    --dark-border: #1a1a35;
+    --text-main: #e8e8ff;
+    --text-dim: #6666aa;
+    --glow-cyan: 0 0 15px rgba(0,255,245,0.4);
+    --glow-pink: 0 0 15px rgba(255,0,110,0.4);
+    --glow-yellow: 0 0 15px rgba(255,221,0,0.4);
+    --glow-green: 0 0 15px rgba(0,255,136,0.4);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--dark-bg);
+    color: var(--text-main);
+    font-family: 'Rajdhani', sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: 56px 1fr;
+    grid-template-columns: 280px 1fr 320px;
+    grid-template-areas:
+      "header header header"
+      "left center right";
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,245,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,245,0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+
+  /* HEADER */
+  header {
+    grid-area: header;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    background: var(--dark-panel);
+    border-bottom: 1px solid var(--dark-border);
+    position: relative; z-index: 10;
+  }
+  .header-brand {
+    font-family: 'Orbitron', monospace;
+    font-size: 16px;
+    font-weight: 900;
+    background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header-center {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .room-badge {
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    color: var(--neon-yellow);
+    letter-spacing: 3px;
+    padding: 6px 14px;
+    border: 1px solid rgba(255,221,0,0.3);
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .room-badge:hover { border-color: var(--neon-yellow); box-shadow: var(--glow-yellow); }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--neon-green);
+    box-shadow: var(--glow-green);
+    animation: pulse 2s infinite;
+  }
+  .status-dot.disconnected { background: var(--neon-pink); box-shadow: var(--glow-pink); animation: none; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .header-right { display: flex; gap: 10px; align-items: center; }
+
+  /* PANELS */
+  .panel-left {
+    grid-area: left;
+    background: var(--dark-panel);
+    border-right: 1px solid var(--dark-border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative; z-index: 1;
+  }
+  .panel-center {
+    grid-area: center;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative; z-index: 1;
+  }
+  .panel-right {
+    grid-area: right;
+    background: var(--dark-panel);
+    border-left: 1px solid var(--dark-border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative; z-index: 1;
+  }
+
+  .panel-title {
+    padding: 14px 16px;
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--dark-border);
+    flex-shrink: 0;
+  }
+
+  /* PLAYERS LIST */
+  .players-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+  .players-list::-webkit-scrollbar { width: 4px; }
+  .players-list::-webkit-scrollbar-track { background: transparent; }
+  .players-list::-webkit-scrollbar-thumb { background: var(--dark-border); border-radius: 2px; }
+
+  .player-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 3px;
+    margin-bottom: 4px;
+    border: 1px solid transparent;
+    transition: all 0.3s;
+    position: relative;
+  }
+  .player-card:hover { border-color: var(--dark-border); background: rgba(255,255,255,0.02); }
+  .player-avatar {
+    width: 36px; height: 36px;
+    border-radius: 2px;
+    background: linear-gradient(135deg, var(--neon-cyan), var(--neon-purple));
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Orbitron', monospace;
+    font-size: 14px; font-weight: 700;
+    color: var(--dark-bg);
+    flex-shrink: 0;
+  }
+  .player-info { flex: 1; min-width: 0; }
+  .player-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .player-score {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    color: var(--neon-cyan);
+    transition: color 0.3s;
+  }
+  .player-score.negative { color: var(--neon-pink); }
+  .player-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; }
+  .player-card:hover .player-actions { opacity: 1; }
+  .action-btn {
+    background: none; border: 1px solid var(--dark-border);
+    border-radius: 2px; padding: 4px 8px;
+    color: var(--text-dim); font-size: 12px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .action-btn:hover { border-color: var(--neon-pink); color: var(--neon-pink); }
+  .action-btn.plus:hover { border-color: var(--neon-green); color: var(--neon-green); }
+
+  .no-players {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+  .no-players .icon { font-size: 32px; display: block; margin-bottom: 12px; opacity: 0.5; }
+
+  /* Control buttons at bottom of left panel */
+  .game-controls {
+    padding: 12px;
+    border-top: 1px solid var(--dark-border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .ctrl-btn {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    border-radius: 2px;
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .ctrl-btn.start {
+    border: 1px solid var(--neon-green);
+    color: var(--neon-green);
+  }
+  .ctrl-btn.start:hover { background: var(--neon-green); color: var(--dark-bg); box-shadow: var(--glow-green); }
+  .ctrl-btn.end {
+    border: 1px solid var(--neon-pink);
+    color: var(--neon-pink);
+  }
+  .ctrl-btn.end:hover { background: var(--neon-pink); color: #fff; box-shadow: var(--glow-pink); }
+  .ctrl-btn.setup {
+    border: 1px solid var(--neon-purple);
+    color: var(--neon-purple);
+  }
+  .ctrl-btn.setup:hover { background: var(--neon-purple); color: #fff; }
+  .ctrl-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .ctrl-btn:disabled:hover { background: transparent; box-shadow: none; }
+
+  /* CENTER - BOARD */
+  .board-wrap {
+    flex: 1;
+    overflow: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  .board-grid {
+    display: grid;
+    gap: 8px;
+    width: 100%;
+  }
+  .board-header {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-align: center;
+    padding: 14px 8px;
+    background: rgba(0,255,245,0.05);
+    border: 1px solid rgba(0,255,245,0.15);
+    border-radius: 2px;
+    color: var(--neon-cyan);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .board-cell {
+    aspect-ratio: 1.5;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--dark-border);
+    border-radius: 2px;
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(14px, 2vw, 22px);
+    font-weight: 700;
+    color: var(--neon-yellow);
+    cursor: pointer;
+    transition: all 0.25s;
+    position: relative;
+    overflow: hidden;
+  }
+  .board-cell::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,221,0,0.1), transparent);
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+  .board-cell:hover:not(.used) { border-color: var(--neon-yellow); box-shadow: var(--glow-yellow); }
+  .board-cell:hover:not(.used)::before { opacity: 1; }
+  .board-cell.used {
+    background: rgba(255,255,255,0.02);
+    color: rgba(255,255,255,0.1);
+    cursor: default;
+    border-color: rgba(255,255,255,0.05);
+  }
+  .board-cell.has-media::after {
+    content: '📎';
+    position: absolute;
+    top: 4px; right: 4px;
+    font-size: 12px;
+    opacity: 0.6;
+  }
+
+  .waiting-overlay {
+    flex: 1;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 20px;
+    text-align: center;
+  }
+  .waiting-icon { font-size: 64px; animation: bounce 2s ease-in-out infinite; }
+  @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+  .waiting-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 20px;
+    color: var(--text-dim);
+  }
+  .waiting-hint { font-size: 14px; color: var(--text-dim); max-width: 300px; line-height: 1.6; }
+
+  /* RIGHT PANEL - Active Question + Judge */
+  .question-panel {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .question-panel::-webkit-scrollbar { width: 4px; }
+  .question-panel::-webkit-scrollbar-thumb { background: var(--dark-border); }
+
+  .q-cat-badge {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--neon-cyan);
+    opacity: 0.7;
+  }
+  .q-points-badge {
+    font-family: 'Orbitron', monospace;
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--neon-yellow);
+    text-shadow: var(--glow-yellow);
+  }
+  .q-text {
+    font-size: 17px;
+    line-height: 1.5;
+    color: var(--text-main);
+    padding: 16px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--dark-border);
+    border-radius: 2px;
+    border-left: 3px solid var(--neon-cyan);
+  }
+  .q-answer {
+    font-size: 15px;
+    color: var(--neon-green);
+    padding: 12px 16px;
+    background: rgba(0,255,136,0.05);
+    border: 1px solid rgba(0,255,136,0.2);
+    border-radius: 2px;
+    display: none;
+  }
+  .q-answer.show { display: block; }
+  .q-answer-label { font-size: 10px; letter-spacing: 2px; color: var(--text-dim); margin-bottom: 4px; }
+
+  /* Media preview */
+  .media-preview {
+    border-radius: 2px;
+    overflow: hidden;
+    border: 1px solid var(--dark-border);
+    max-height: 200px;
+    display: none;
+  }
+  .media-preview.show { display: block; }
+  .media-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .media-preview video, .media-preview audio { width: 100%; display: block; }
+
+  /* Timer ring */
+  .timer-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--dark-border);
+    border-radius: 2px;
+  }
+  .timer-ring {
+    position: relative;
+    width: 52px; height: 52px;
+    flex-shrink: 0;
+  }
+  .timer-ring svg { transform: rotate(-90deg); }
+  .timer-ring circle.bg { fill: none; stroke: var(--dark-border); stroke-width: 3; }
+  .timer-ring circle.fg {
+    fill: none; stroke: var(--neon-cyan); stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 138;
+    stroke-dashoffset: 0;
+    transition: stroke-dashoffset 1s linear, stroke 0.5s;
+  }
+  .timer-ring .num {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Orbitron', monospace;
+    font-size: 14px; font-weight: 700;
+    color: var(--neon-cyan);
+  }
+  .timer-phase {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .timer-phase.answer { color: var(--neon-pink); }
+
+  /* Buzzer winner */
+  .buzzer-winner-card {
+    padding: 16px;
+    background: rgba(255,0,110,0.05);
+    border: 1px solid rgba(255,0,110,0.3);
+    border-radius: 2px;
+    text-align: center;
+    animation: winnerPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: none;
+  }
+  .buzzer-winner-card.show { display: block; }
+  @keyframes winnerPop {
+    0% { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .bw-label { font-size: 10px; letter-spacing: 3px; color: var(--neon-pink); text-transform: uppercase; }
+  .bw-name { font-family: 'Orbitron', monospace; font-size: 22px; font-weight: 700; color: #fff; margin: 6px 0; }
+  .bw-hint { font-size: 13px; color: var(--text-dim); }
+
+  /* Judge buttons */
+  .judge-btns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    display: none;
+  }
+  .judge-btns.show { display: grid; }
+  .judge-btn {
+    padding: 16px;
+    border-radius: 2px;
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+  }
+  .judge-btn.correct {
+    background: rgba(0,255,136,0.1);
+    border: 1px solid var(--neon-green);
+    color: var(--neon-green);
+  }
+  .judge-btn.correct:hover { background: var(--neon-green); color: var(--dark-bg); box-shadow: var(--glow-green); }
+  .judge-btn.wrong {
+    background: rgba(255,0,110,0.1);
+    border: 1px solid var(--neon-pink);
+    color: var(--neon-pink);
+  }
+  .judge-btn.wrong:hover { background: var(--neon-pink); color: #fff; box-shadow: var(--glow-pink); }
+
+  .skip-btn {
+    width: 100%;
+    padding: 10px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 2px;
+    color: var(--text-dim);
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .skip-btn:hover { border-color: var(--neon-pink); color: var(--neon-pink); }
+
+  .no-question {
+    flex: 1;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 12px; text-align: center;
+    color: var(--text-dim);
+  }
+  .no-question .icon { font-size: 48px; opacity: 0.3; }
+  .no-question p { font-size: 14px; line-height: 1.5; }
+
+  /* Chat */
+  .chat-section {
+    border-top: 1px solid var(--dark-border);
+    height: 220px;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
+  }
+  .chat-messages::-webkit-scrollbar { width: 3px; }
+  .chat-messages::-webkit-scrollbar-thumb { background: var(--dark-border); }
+  .chat-msg {
+    padding: 4px 0;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .chat-msg .who { color: var(--neon-cyan); font-weight: 600; }
+  .chat-msg .who.host { color: var(--neon-yellow); }
+  .chat-msg .who.system { color: var(--text-dim); font-style: italic; }
+  .chat-input-wrap {
+    display: flex;
+    border-top: 1px solid var(--dark-border);
+  }
+  .chat-input {
+    flex: 1;
+    background: none;
+    border: none;
+    padding: 10px 12px;
+    color: var(--text-main);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    outline: none;
+  }
+  .chat-send {
+    background: none;
+    border: none;
+    border-left: 1px solid var(--dark-border);
+    padding: 10px 14px;
+    color: var(--neon-cyan);
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.2s;
+  }
+  .chat-send:hover { background: rgba(0,255,245,0.05); }
+
+  /* MODALS */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.8);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--dark-card);
+    border: 1px solid var(--dark-border);
+    border-radius: 4px;
+    width: 100%;
+    max-width: 680px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .modal::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--neon-purple), var(--neon-pink));
+  }
+  .modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--dark-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modal-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: var(--neon-purple);
+  }
+  .modal-close {
+    background: none; border: none;
+    color: var(--text-dim); font-size: 20px;
+    cursor: pointer; line-height: 1;
+    transition: color 0.2s;
+  }
+  .modal-close:hover { color: var(--neon-pink); }
+  .modal-body { overflow-y: auto; padding: 20px 24px; flex: 1; }
+  .modal-body::-webkit-scrollbar { width: 4px; }
+  .modal-body::-webkit-scrollbar-thumb { background: var(--dark-border); }
+  .modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--dark-border);
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  /* Question editor */
+  .editor-tabs {
+    display: flex; gap: 8px; margin-bottom: 16px;
+    border-bottom: 1px solid var(--dark-border);
+    padding-bottom: 8px;
+  }
+  .cat-tab {
+    padding: 8px 14px;
+    background: none;
+    border: 1px solid var(--dark-border);
+    border-radius: 2px;
+    color: var(--text-dim);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .cat-tab.active { border-color: var(--neon-purple); color: var(--neon-purple); }
+  .cat-tab.add-tab { color: var(--neon-cyan); border-color: rgba(0,255,245,0.2); }
+
+  .category-editor { display: none; }
+  .category-editor.active { display: block; }
+
+  .cat-name-row {
+    display: flex; gap: 8px; align-items: center; margin-bottom: 16px;
+  }
+  .cat-name-row input {
+    flex: 1;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--dark-border);
+    border-radius: 2px;
+    padding: 10px 12px;
+    color: var(--text-main);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    outline: none;
+  }
+  .cat-name-row input:focus { border-color: var(--neon-purple); }
+
+  .question-editor-item {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--dark-border);
+    border-radius: 3px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .qe-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+  }
+  .qe-points {
+    font-family: 'Orbitron', monospace;
+    font-size: 16px;
+    color: var(--neon-yellow);
+    font-weight: 700;
+  }
+  .qe-fields { display: grid; gap: 8px; }
+  .qe-field label {
+    display: block;
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--text-dim); margin-bottom: 4px;
+  }
+  .qe-field input, .qe-field textarea {
+    width: 100%;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--dark-border);
+    border-radius: 2px;
+    padding: 8px 10px;
+    color: var(--text-main);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    outline: none;
+    resize: vertical;
+  }
+  .qe-field input:focus, .qe-field textarea:focus { border-color: var(--neon-purple); }
+
+  /* Media upload */
+  .media-upload-area {
+    border: 2px dashed var(--dark-border);
+    border-radius: 2px;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .media-upload-area:hover { border-color: var(--neon-purple); }
+  .media-upload-area input { display: none; }
+  .media-upload-area .upload-label {
+    font-size: 13px; color: var(--text-dim);
+    cursor: pointer; display: block;
+  }
+  .media-upload-area .upload-label span { color: var(--neon-purple); }
+  .media-preview-small {
+    margin-top: 8px;
+    max-height: 80px;
+    overflow: hidden;
+    border-radius: 2px;
+    display: none;
+  }
+  .media-preview-small img { max-height: 80px; max-width: 100%; object-fit: contain; }
+  .media-preview-small.show { display: block; }
+  .media-clear {
+    background: none; border: none;
+    color: var(--neon-pink); font-size: 12px;
+    cursor: pointer; margin-top: 4px;
+    display: none;
+  }
+  .media-clear.show { display: inline-block; }
+
+  .modal-btn {
+    padding: 12px 24px;
+    border-radius: 2px;
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .modal-btn.primary {
+    background: transparent;
+    border: 1px solid var(--neon-cyan);
+    color: var(--neon-cyan);
+  }
+  .modal-btn.primary:hover { background: var(--neon-cyan); color: var(--dark-bg); }
+  .modal-btn.cancel {
+    background: transparent;
+    border: 1px solid var(--dark-border);
+    color: var(--text-dim);
+  }
+  .modal-btn.cancel:hover { border-color: var(--text-dim); color: var(--text-main); }
+
+  /* Score adjust modal */
+  .adjust-field {
+    display: flex; gap: 8px; align-items: center; margin-top: 16px;
+  }
+  .adjust-field input {
+    flex: 1;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--dark-border);
+    border-radius: 2px;
+    padding: 12px;
+    color: var(--text-main);
+    font-family: 'Orbitron', monospace;
+    font-size: 20px; text-align: center;
+    outline: none;
+  }
+  .adjust-field input:focus { border-color: var(--neon-cyan); }
+
+  /* Game ended overlay */
+  .ended-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.92);
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 24px;
+    text-align: center;
+    padding: 40px;
+  }
+  .ended-overlay.show { display: flex; animation: fadeIn 0.5s; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .ended-title {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(24px, 5vw, 48px);
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--neon-yellow), var(--neon-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .ended-scores { width: 100%; max-width: 400px; }
+  .score-row {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 20px;
+    margin-bottom: 8px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--dark-border);
+    border-radius: 2px;
+    animation: slideIn 0.4s ease both;
+  }
+  @keyframes slideIn { from { transform: translateX(-20px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .score-row:first-child { border-color: rgba(255,221,0,0.4); background: rgba(255,221,0,0.05); }
+  .score-rank { font-family: 'Orbitron', monospace; font-size: 18px; color: var(--text-dim); width: 30px; }
+  .score-row:first-child .score-rank { color: var(--neon-yellow); }
+  .score-name { flex: 1; font-size: 18px; font-weight: 700; text-align: left; }
+  .score-val { font-family: 'Orbitron', monospace; font-size: 20px; color: var(--neon-cyan); }
+
+  .toast {
+    position: fixed;
+    bottom: 20px; left: 50%;
+    transform: translateX(-50%);
+    background: var(--dark-card);
+    border: 1px solid var(--dark-border);
+    border-radius: 2px;
+    padding: 10px 20px;
+    font-size: 14px;
+    z-index: 999;
+    animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s both;
+    pointer-events: none;
+  }
+  @keyframes toastIn { from { transform: translateX(-50%) translateY(10px); opacity: 0; } to { transform: translateX(-50%) translateY(0); opacity: 1; } }
+  @keyframes toastOut { to { opacity: 0; } }
+
+  .scanlines {
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px);
+    pointer-events: none; z-index: 9999;
+  }
+</style>
+</head>
+<body>
+<div class="scanlines"></div>
+
+<!-- HEADER -->
+<header>
+  <div class="header-brand">⚡ JEOPARDY</div>
+  <div class="header-center">
+    <div class="status-dot" id="status-dot"></div>
+    <div class="room-badge" onclick="copyRoomCode()" id="room-badge" title="Nusxalash uchun bosing">
+      XONA: <span id="hdr-room">----</span>
+    </div>
+    <span id="hdr-state" style="font-size:12px;color:var(--text-dim);letter-spacing:2px;">KUTILMOQDA</span>
+  </div>
+  <div class="header-right">
+    <span style="font-size:13px;color:var(--text-dim);" id="hdr-username"></span>
+  </div>
+</header>
+
+<!-- LEFT PANEL: Players -->
+<div class="panel-left">
+  <div class="panel-title">O'yinchilar</div>
+  <div class="players-list" id="players-list">
+    <div class="no-players"><span class="icon">👥</span>Hali o'yinchi yo'q</div>
+  </div>
+  <div class="game-controls">
+    <button class="ctrl-btn setup" onclick="openSetupModal()">📋 Savollarni Sozla</button>
+    <button class="ctrl-btn start" id="btn-start" onclick="startGame()" disabled>▶ O'yinni Boshlash</button>
+    <button class="ctrl-btn end" id="btn-end" onclick="endGame()" style="display:none">■ O'yinni Tugatish</button>
+  </div>
+</div>
+
+<!-- CENTER: Board -->
+<div class="panel-center">
+  <div class="panel-title">Savol Taxtasi</div>
+  <div class="board-wrap" id="board-wrap">
+    <div class="waiting-overlay" id="waiting-overlay">
+      <span class="waiting-icon">🎯</span>
+      <div class="waiting-title">Savollarni Qo'shing</div>
+      <div class="waiting-hint">Chapdan "Savollarni Sozla" tugmasini bosib savollar kiriting, so'ng o'yinni boshlang.</div>
+    </div>
+    <div class="board-grid" id="board-grid" style="display:none"></div>
+  </div>
+</div>
+
+<!-- RIGHT PANEL: Question + Chat -->
+<div class="panel-right">
+  <div class="panel-title">Faol Savol</div>
+
+  <!-- No question state -->
+  <div class="no-question" id="no-question">
+    <span class="icon">💡</span>
+    <p>Taxtadan savol tanlang</p>
+  </div>
+
+  <!-- Active question -->
+  <div class="question-panel" id="question-panel" style="display:none">
+    <div>
+      <div class="q-cat-badge" id="q-cat"></div>
+      <div class="q-points-badge" id="q-pts"></div>
+    </div>
+
+    <div class="media-preview" id="q-media-preview">
+      <!-- filled dynamically -->
+    </div>
+
+    <div class="q-text" id="q-text"></div>
+
+    <div class="q-answer" id="q-answer">
+      <div class="q-answer-label">To'g'ri Javob</div>
+      <div id="q-answer-text"></div>
+    </div>
+
+    <!-- Timer -->
+    <div class="timer-wrap" id="timer-wrap">
+      <div class="timer-ring">
+        <svg viewBox="0 0 52 52" width="52" height="52">
+          <circle class="bg" cx="26" cy="26" r="22"/>
+          <circle class="fg" id="timer-circle" cx="26" cy="26" r="22"/>
+        </svg>
+        <div class="num" id="timer-num">30</div>
+      </div>
+      <div>
+        <div style="font-size:14px;font-weight:600;" id="timer-label">Savol Vaqti</div>
+        <div class="timer-phase" id="timer-phase">Buzzer kutilmoqda</div>
+      </div>
+    </div>
+
+    <!-- Buzzer winner -->
+    <div class="buzzer-winner-card" id="buzzer-winner-card">
+      <div class="bw-label">🔴 Buzzer Bosdi!</div>
+      <div class="bw-name" id="bw-name"></div>
+      <div class="bw-hint">Javob berish vaqti: 10 soniya</div>
+    </div>
+
+    <!-- Judge -->
+    <div class="judge-btns" id="judge-btns">
+      <button class="judge-btn correct" onclick="judge(true)">✓ To'g'ri</button>
+      <button class="judge-btn wrong" onclick="judge(false)">✗ Noto'g'ri</button>
+    </div>
+
+    <button class="skip-btn" onclick="skipQuestion()">O'tkazib Yuborish</button>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat-section">
+    <div class="panel-title">Chat</div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="chat-input-wrap">
+      <input class="chat-input" id="chat-input" placeholder="Xabar yozing..." maxlength="300"
+             onkeydown="if(event.key==='Enter')sendChat()">
+      <button class="chat-send" onclick="sendChat()">➤</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETUP MODAL (Jeopardy Board Style) -->
+<div class="modal-overlay" id="setup-modal">
+  <div class="modal" style="max-width: 90vw; width: 800px; max-height: 90vh;">
+    <div class="modal-header">
+      <div class="modal-title">Savollarni Sozlash</div>
+      <div>
+        <button class="modal-btn cancel" onclick="addCategory()" style="padding:4px 8px;font-size:10px">+ Kategoriya Qo'shish</button>
+        <button class="modal-close" onclick="closeSetupModal()" style="margin-left:16px;">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" style="background:#0a0a18;">
+      <div id="editor-board" style="display:flex; gap:8px; overflow-x:auto;">
+        <!-- Categories and items will be loaded here -->
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn cancel" onclick="closeSetupModal()">Bekor</button>
+      <button class="modal-btn primary" onclick="saveQuestions()">Saqlash va Qo'llash</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDITOR CELL MODAL -->
+<div class="modal-overlay" id="cell-modal" style="z-index: 101;">
+  <div class="modal" style="max-width: 600px;">
+    <div class="modal-header">
+      <div class="modal-title" style="display:flex; align-items:center; gap:8px;">
+        <span id="cell-modal-title"></span> 
+        <input type="number" id="cell-points-input" style="background:rgba(255,255,255,0.05); border:1px solid var(--dark-border); border-radius:2px; color:var(--neon-yellow); font-family:'Orbitron', monospace; font-size:16px; width:70px; padding:4px; text-align:center;" title="Ballni o'zgartirish" />
+      </div>
+      <button class="modal-close" onclick="closeCellModal()">✕</button>
+    </div>
+    <div class="modal-body" style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+      <div class="qe-field" style="min-width:0;">
+         <label>Question Prompt</label>
+         <div id="cell-question" contenteditable="true" style="background:rgba(255,255,255,0.03);border:1px solid var(--dark-border);border-radius:2px;padding:8px;color:var(--text-main);min-height:100px;max-height:300px;font-family:'Rajdhani', sans-serif;overflow-y:auto; overflow-wrap:break-word;"></div>
+      </div>
+      <div class="qe-field" style="min-width:0;">
+         <label>Correct Response</label>
+         <div id="cell-answer" contenteditable="true" style="background:rgba(255,255,255,0.03);border:1px solid var(--dark-border);border-radius:2px;padding:8px;color:var(--text-main);min-height:100px;max-height:300px;font-family:'Rajdhani', sans-serif;overflow-y:auto; overflow-wrap:break-word;"></div>
+      </div>
+    </div>
+    <div class="modal-footer" style="flex-wrap: wrap;">
+      <div style="font-size:10px; color:var(--text-dim); flex:100%; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
+        <span>Ovoz/Video/Rasm yuklash: <input type="file" id="cell-file-input" accept="image/*,video/*,audio/*" onchange="uploadCellMedia(this)" style="font-size:10px; color:var(--text-main);" /></span>
+        <span>Ctrl+V orqali ham rasm joylash mumkin</span>
+      </div>
+      <button class="modal-btn cancel" onclick="deleteCellQuestion()">Tugatish/O'chirish</button>
+      <button class="modal-btn primary" onclick="saveCellQuestion()">Saqlash</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADJUST SCORE MODAL -->
+<div class="modal-overlay" id="adjust-modal">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-header">
+      <div class="modal-title">Ball O'zgartirish</div>
+      <button class="modal-close" onclick="closeAdjustModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:16px;color:var(--text-dim)">O'yinchi: <strong id="adj-username" style="color:var(--text-main)"></strong></div>
+      <div class="adjust-field">
+        <button class="modal-btn cancel" onclick="adjustDir(-1)" style="padding:12px 20px;font-size:20px">−</button>
+        <input type="number" id="adj-val" value="100" min="1" max="9999">
+        <button class="modal-btn cancel" onclick="adjustDir(1)" style="padding:12px 20px;font-size:20px">+</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn cancel" onclick="closeAdjustModal()">Bekor</button>
+      <button class="modal-btn primary" onclick="confirmAdjust(-1)">− Ayirish</button>
+      <button class="modal-btn primary" onclick="confirmAdjust(1)" style="border-color:var(--neon-green);color:var(--neon-green)">+ Qo'shish</button>
+    </div>
+  </div>
+</div>
+
+<!-- GAME ENDED -->
+<div class="ended-overlay" id="ended-overlay">
+  <div class="ended-title">🏆 O'YIN TUGADI!</div>
+  <div class="ended-scores" id="ended-scores"></div>
+  <button class="modal-btn primary" onclick="location.href='/'">Bosh Sahifa</button>
+</div>
+
+<script>
+// ====== STATE ======
+let ws = null;
+let roomCode = sessionStorage.getItem('jeopardy_room') || '';
+let username = sessionStorage.getItem('jeopardy_username') || 'Host';
+let reconnectAttempts = 0;
+let gameState = 'waiting';
+let players = {};
+let categories = []; // local editor state
+let timerMax = 30;
+let currentPhase = 'question'; // question | answer
+let adjustTarget = null;
+
+// ====== INIT ======
+document.getElementById('hdr-room').textContent = roomCode;
+document.getElementById('hdr-username').textContent = username;
+
+if (!roomCode) { window.location.href = '/'; }
+else { connect(); }
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/${roomCode}/${username}`);
+
+  ws.onopen = () => {
+    reconnectAttempts = 0;
+    document.getElementById('status-dot').className = 'status-dot';
+    ws.send(JSON.stringify({ type: 'join', room: roomCode, data: { username, role: 'host' } }));
+  };
+
+  ws.onmessage = e => handleMsg(JSON.parse(e.data));
+
+  ws.onclose = () => {
+    document.getElementById('status-dot').className = 'status-dot disconnected';
+    if (reconnectAttempts < 5) {
+      setTimeout(connect, Math.min(1000 * 2 ** reconnectAttempts, 15000));
+      reconnectAttempts++;
+    }
+  };
+  ws.onerror = () => ws.close();
+}
+
+function send(msg) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ ...msg, room: roomCode }));
+}
+
+// ====== MESSAGE HANDLER ======
+function handleMsg(msg) {
+  switch (msg.type) {
+    case 'welcome': applyFullState(msg.data); break;
+    case 'player_joined': addPlayer(msg.data); break;
+    case 'player_rejoined': updatePlayerConnection(msg.data.username, true); break;
+    case 'player_left': removePlayer(msg.data); break;
+    case 'questions_updated': applyBoard(msg.data); break;
+    case 'game_started':
+      gameState = 'active';
+      document.getElementById('hdr-state').textContent = 'AKTİV';
+      document.getElementById('btn-start').style.display = 'none';
+      document.getElementById('btn-end').style.display = 'block';
+      applyFullState(msg.data);
+      break;
+    case 'question_opened': showQuestion(msg.data); break;
+    case 'buzzer_locked': showBuzzerWinner(msg.data); break;
+    case 'buzzer_reopened':
+      hideBuzzerWinner();
+      document.getElementById('timer-phase').textContent = 'Buzzer ochiq';
+      document.getElementById('timer-phase').className = 'timer-phase';
+      showToast(`❌ ${msg.data.wrong_player || msg.data.timed_out_player} — noto'g'ri (-${msg.data.delta ? Math.abs(msg.data.delta) : '?'})`);
+      break;
+    case 'score_update': updateScore(msg.data); break;
+    case 'question_closed': closeQuestion(msg.data); break;
+    case 'timer_tick': updateTimer(msg.data); break;
+    case 'game_ended': showEnded(msg.data); break;
+    case 'chat': addChat(msg.data); break;
+    case 'error': showToast('⚠ ' + msg.data.message); break;
+  }
+}
+
+function applyFullState(data) {
+  gameState = data.game_state;
+  document.getElementById('hdr-state').textContent =
+    gameState === 'active' ? 'AKTİV' : gameState === 'ended' ? 'TUGADI' : 'KUTILMOQDA';
+
+  // Players
+  players = {};
+  (data.players || []).forEach(p => { players[p.username] = p; });
+  renderPlayers();
+
+  // Board
+  if (data.board && Object.keys(data.board).length) {
+    applyBoard({ board: data.board, categories: data.categories || [] });
+  }
+  // Controls
+  if (gameState === 'active') {
+    document.getElementById('btn-start').style.display = 'none';
+    document.getElementById('btn-end').style.display = 'block';
+  }
+  // Active question
+  if (data.current_question) showQuestion(data.current_question);
+}
+
+// ====== PLAYERS ======
+function renderPlayers() {
+  const list = document.getElementById('players-list');
+  const keys = Object.keys(players);
+  if (!keys.length) {
+    list.innerHTML = '<div class="no-players"><span class="icon">👥</span>Hali o\'yinchi yo\'q</div>';
+    document.getElementById('btn-start').disabled = true;
+    return;
+  }
+  list.innerHTML = keys.map(u => {
+    const p = players[u];
+    const scoreClass = p.score < 0 ? 'negative' : '';
+    const letter = u[0].toUpperCase();
+    return `<div class="player-card" id="pc-${u}">
+      <div class="player-avatar">${letter}</div>
+      <div class="player-info">
+        <div class="player-name">${u}</div>
+        <div class="player-score ${scoreClass}" id="score-${u}">${p.score}</div>
+      </div>
+      <div class="player-actions">
+        <button class="action-btn plus" onclick="openAdjust('${u}')">±</button>
+        <button class="action-btn" onclick="kickPlayer('${u}')">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+  if (gameState !== 'active') {
+    document.getElementById('btn-start').disabled = keys.length === 0;
+  }
+}
+
+function addPlayer(data) {
+  players[data.username] = { username: data.username, score: data.score || 0 };
+  renderPlayers();
+  addChat({ username: 'TIZIM', text: `${data.username} qo'shildi`, role: 'system' });
+}
+
+function removePlayer(data) {
+  delete players[data.username];
+  renderPlayers();
+  const reason = data.reason === 'kicked' ? 'chiqarildi' : 'uzildi';
+  addChat({ username: 'TIZIM', text: `${data.username} ${reason}`, role: 'system' });
+}
+
+function updatePlayerConnection(uname, connected) {
+  if (players[uname]) { players[uname].is_connected = connected; renderPlayers(); }
+}
+
+function updateScore(data) {
+  const { username: u, score, delta } = data;
+  if (players[u]) players[u].score = score;
+  const el = document.getElementById(`score-${u}`);
+  if (el) {
+    el.textContent = score;
+    el.className = `player-score ${score < 0 ? 'negative' : ''}`;
+    // Flash
+    el.style.transform = 'scale(1.3)';
+    el.style.color = delta > 0 ? 'var(--neon-green)' : 'var(--neon-pink)';
+    setTimeout(() => {
+      el.style.transform = '';
+      el.style.color = '';
+    }, 600);
+  }
+}
+
+// ====== BOARD ======
+function applyBoard(data) {
+  document.getElementById('waiting-overlay').style.display = 'none';
+  const grid = document.getElementById('board-grid');
+  grid.style.display = 'grid';
+  const cats = data.categories || Object.keys(data.board);
+  const numCols = cats.length;
+  grid.style.gridTemplateColumns = `repeat(${numCols}, 1fr)`;
+
+  const board = data.board;
+  // Find all point values
+  const allPts = new Set();
+  cats.forEach(c => (board[c] || []).forEach(q => allPts.add(q.points)));
+  const pts = [...allPts].sort((a,b) => a-b);
+
+  let html = cats.map(c => `<div class="board-header">${c}</div>`).join('');
+  pts.forEach(p => {
+    cats.forEach(c => {
+      const q = (board[c] || []).find(x => x.points === p);
+      if (!q) { html += `<div></div>`; return; }
+      const usedClass = q.status === 'used' ? 'used' : '';
+      const mediaClass = q.has_media ? 'has-media' : '';
+      const click = q.status !== 'used' ? `onclick="selectQuestion('${c}',${p})"` : '';
+      html += `<div class="board-cell ${usedClass} ${mediaClass}" id="cell-${c}-${p}" ${click}>${p}</div>`;
+    });
+  });
+  grid.innerHTML = html;
+}
+
+function markCellUsed(cat, pts) {
+  const cell = document.getElementById(`cell-${cat}-${pts}`);
+  if (cell) {
+    cell.classList.add('used');
+    cell.onclick = null;
+    cell.textContent = '';
+  }
+}
+
+// ====== QUESTION ======
+function showQuestion(data) {
+  document.getElementById('no-question').style.display = 'none';
+  document.getElementById('question-panel').style.display = 'flex';
+  document.getElementById('question-panel').style.flexDirection = 'column';
+  document.getElementById('question-panel').style.gap = '12px';
+
+  document.getElementById('q-cat').textContent = data.category;
+  document.getElementById('q-pts').textContent = data.points;
+  document.getElementById('q-text').innerHTML = data.question;
+
+  const ans = document.getElementById('q-answer');
+  ans.classList.remove('show');
+
+  // Media
+  const mp = document.getElementById('q-media-preview');
+  if (data.media && data.media.url) {
+    mp.classList.add('show');
+    const mt = data.media.type;
+    if (mt === 'image') mp.innerHTML = `<img src="${data.media.url}" alt="media">`;
+    else if (mt === 'video') mp.innerHTML = `<video controls><source src="${data.media.url}"></video>`;
+    else if (mt === 'audio') mp.innerHTML = `<audio controls style="width:100%"><source src="${data.media.url}"></audio>`;
+  } else {
+    mp.classList.remove('show');
+    mp.innerHTML = '';
+  }
+
+  hideBuzzerWinner();
+  document.getElementById('judge-btns').classList.remove('show');
+
+  // Timer
+  timerMax = data.timer_seconds || 30;
+  currentPhase = 'question';
+  setTimer(timerMax, 'question');
+}
+
+function closeQuestion(data) {
+  markCellUsed(data.category, data.points);
+  // Show answer
+  document.getElementById('q-answer-text').innerHTML = data.answer;
+  document.getElementById('q-answer').classList.add('show');
+  hideBuzzerWinner();
+  document.getElementById('judge-btns').classList.remove('show');
+  setTimeout(() => {
+    document.getElementById('no-question').style.display = '';
+    document.getElementById('question-panel').style.display = 'none';
+  }, 4000);
+}
+
+function showBuzzerWinner(data) {
+  document.getElementById('bw-name').textContent = data.winner;
+  document.getElementById('buzzer-winner-card').classList.add('show');
+  document.getElementById('judge-btns').classList.add('show');
+  currentPhase = 'answer';
+  setTimer(10, 'answer');
+}
+
+function hideBuzzerWinner() {
+  document.getElementById('buzzer-winner-card').classList.remove('show');
+  document.getElementById('judge-btns').classList.remove('show');
+}
+
+function setTimer(secs, phase) {
+  document.getElementById('timer-num').textContent = secs;
+  const max = phase === 'answer' ? 10 : timerMax;
+  const circumference = 138;
+  const offset = circumference - (secs / max) * circumference;
+  const circle = document.getElementById('timer-circle');
+  circle.style.strokeDashoffset = offset;
+
+  if (phase === 'answer') {
+    circle.style.stroke = 'var(--neon-pink)';
+    document.getElementById('timer-num').style.color = 'var(--neon-pink)';
+    document.getElementById('timer-label').textContent = 'Javob Vaqti';
+    document.getElementById('timer-phase').textContent = 'Javob berish';
+    document.getElementById('timer-phase').className = 'timer-phase answer';
+  } else {
+    circle.style.stroke = secs <= 10 ? 'var(--neon-pink)' : 'var(--neon-cyan)';
+    document.getElementById('timer-num').style.color = secs <= 10 ? 'var(--neon-pink)' : 'var(--neon-cyan)';
+    document.getElementById('timer-label').textContent = 'Savol Vaqti';
+    document.getElementById('timer-phase').textContent = 'Buzzer kutilmoqda';
+    document.getElementById('timer-phase').className = 'timer-phase';
+  }
+}
+
+function updateTimer(data) {
+  currentPhase = data.phase;
+  setTimer(data.seconds_remaining, data.phase);
+}
+
+// ====== ACTIONS ======
+function selectQuestion(cat, pts) {
+  send({ type: 'open_question', data: { category: cat, points: pts } });
+}
+function judge(correct) { send({ type: 'judge', data: { correct } }); }
+function skipQuestion() { send({ type: 'skip_question' }); }
+function startGame() { send({ type: 'start_game' }); }
+function endGame() { if (confirm('O\'yinni tugatishga ishonchingiz komilmi?')) send({ type: 'end_game' }); }
+function kickPlayer(u) { send({ type: 'kick_player', data: { username: u } }); }
+
+function sendChat() {
+  const inp = document.getElementById('chat-input');
+  const text = inp.value.trim();
+  if (!text) return;
+  send({ type: 'chat', data: { text } });
+  inp.value = '';
+}
+
+// ====== SCORE ADJUST ======
+function openAdjust(u) {
+  adjustTarget = u;
+  document.getElementById('adj-username').textContent = u;
+  document.getElementById('adj-val').value = 100;
+  document.getElementById('adjust-modal').classList.add('show');
+}
+function closeAdjustModal() { document.getElementById('adjust-modal').classList.remove('show'); }
+function adjustDir(d) { document.getElementById('adj-val').value = Math.abs(parseInt(document.getElementById('adj-val').value)||100); }
+function confirmAdjust(sign) {
+  const delta = sign * Math.abs(parseInt(document.getElementById('adj-val').value) || 0);
+  if (!delta) return;
+  send({ type: 'adjust_score', data: { username: adjustTarget, delta } });
+  closeAdjustModal();
+}
+
+// ====== SETUP MODAL ======
+let editorCats = []; 
+let editingCell = null; // { catIdx, qIdx }
+
+async function openSetupModal() {
+  if (!editorCats.length) {
+    try {
+      const res = await fetch('/api/load-presets/' + username);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.categories && data.categories.length) {
+          editorCats = data.categories;
+        }
+      }
+    } catch(e) {}
+  }
+  if (!editorCats.length) {
+    editorCats = [1,2,3,4,5].map(i => ({
+      name: `Kategoriya ${i}`,
+      questions: [100,200,300,400,500].map(p => ({ points: p, question: '', answer: '', hint: '', media: null }))
+    }));
+  }
+  renderEditorBoard();
+  document.getElementById('setup-modal').classList.add('show');
+}
+
+function closeSetupModal() { document.getElementById('setup-modal').classList.remove('show'); }
+
+function renderEditorBoard() {
+  const boardEl = document.getElementById('editor-board');
+  boardEl.innerHTML = editorCats.map((c, catIdx) => `
+    <div style="display:flex; flex-direction:column; gap:8px; min-width:140px; flex:1;">
+      <div style="display:flex; gap:4px;">
+        <input type="text" value="${escH(c.name)}" oninput="editorCats[${catIdx}].name=this.value" 
+               style="width:100%; background:transparent; border:none; text-align:center; color:var(--text-dim); font-family:'Orbitron', monospace; font-size:12px; padding:4px; outline:none; border-bottom:1px dashed var(--dark-border);">
+        <button style="background:none;border:none;color:var(--neon-pink);cursor:pointer;" onclick="removeCategory(${catIdx})" title="O'chirish">✕</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        ${c.questions.map((q, qIdx) => `
+           <div onclick="openCellModal(${catIdx}, ${qIdx})" 
+                style="background:${(q.question||'').trim() || q.media ? 'rgba(0,255,245,0.1)' : 'var(--dark-panel)'}; border:2px solid ${(q.question||'').trim() || q.media ? 'var(--neon-cyan)' : 'var(--dark-border)'}; border-radius:2px; height:70px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-family:'Orbitron',monospace; font-size:24px; color:${(q.question||'').trim() || q.media ? 'var(--neon-cyan)' : 'var(--text-dim)'}; transition:all 0.2s;"
+                onmouseover="this.style.boxShadow='var(--glow-cyan)'" onmouseout="this.style.boxShadow='none'">
+              ${q.points}
+           </div>
+        `).join('')}
+      </div>
+      <button onclick="addCellQuestion(${catIdx})" style="background:none; border:1px dashed var(--dark-border); color:var(--text-dim); padding:6px; cursor:pointer; border-radius:2px; margin-top:2px; font-size:12px; transition:color 0.2s;" onmouseover="this.style.color='var(--neon-cyan)'" onmouseout="this.style.color='var(--text-dim)'">+ savol qator</button>
+    </div>
+  `).join('');
+}
+
+function addCategory() {
+  editorCats.push({
+    name: `Yangi Kat`,
+    questions: [100,200,300,400,500].map(p => ({ points: p, question: '', answer: '', hint: '', media: null }))
+  });
+  renderEditorBoard();
+}
+
+function removeCategory(idx) {
+  if (confirm("Kategoriyani o'chirib tashlaysizmi?")) {
+    editorCats.splice(idx, 1);
+    renderEditorBoard();
+  }
+}
+
+function addCellQuestion(catIdx) {
+  let pts = 100;
+  const curr = editorCats[catIdx].questions;
+  if (curr.length > 0) pts = curr[curr.length-1].points + 100;
+  curr.push({ points: pts, question: '', answer: '', hint: '', media: null });
+  renderEditorBoard();
+}
+
+function openCellModal(catIdx, qIdx) {
+  editingCell = { catIdx, qIdx };
+  const q = editorCats[catIdx].questions[qIdx];
+  document.getElementById('cell-modal-title').textContent = `${editorCats[catIdx].name}`;
+  document.getElementById('cell-points-input').value = q.points;
+  document.getElementById('cell-question').innerHTML = q.question || '';
+  document.getElementById('cell-answer').innerHTML = q.answer || '';
+  document.getElementById('cell-modal').classList.add('show');
+}
+function closeCellModal() {
+  document.getElementById('cell-modal').classList.remove('show');
+  editingCell = null;
+}
+function saveCellQuestion() {
+  if (!editingCell) return;
+  const q = editorCats[editingCell.catIdx].questions[editingCell.qIdx];
+  q.points = parseInt(document.getElementById('cell-points-input').value) || q.points;
+  q.question = document.getElementById('cell-question').innerHTML;
+  q.answer = document.getElementById('cell-answer').innerHTML;
+  closeCellModal();
+  renderEditorBoard();
+}
+function deleteCellQuestion() {
+  if (!editingCell) return;
+  if(confirm("Bu savol katakchasini rostdan o'chirmoqchimisiz?")) {
+    editorCats[editingCell.catIdx].questions.splice(editingCell.qIdx, 1);
+    closeCellModal();
+    renderEditorBoard();
+  }
+}
+
+async function uploadCellMedia(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const res = await fetch('/api/upload-media', { method: 'POST', body: formData });
+    if(res.ok) {
+      const data = await res.json();
+      let html = '';
+      if (data.media_type === 'image') {
+        html = `<img src="${data.url}" style="max-width:100%; max-height:200px; display:block; margin:8px 0; border:1px solid var(--neon-purple); border-radius:2px;" />`;
+      } else if (data.media_type === 'video') {
+        html = `<br><div style="margin:8px 0; padding:8px; border:1px solid var(--neon-purple); border-radius:2px; background:rgba(0,0,0,0.3);"><span style="font-size:12px;color:var(--neon-cyan)">📹 Video Yuklandi:</span><video controls style="max-width:100%; display:block; margin-top:4px;"><source src="${data.url}"></video></div><br>`;
+      } else if (data.media_type === 'audio') {
+        html = `<br><div style="margin:8px 0; padding:8px; border:1px solid var(--neon-purple); border-radius:2px; background:rgba(0,0,0,0.3);"><span style="font-size:12px;color:var(--neon-green)">🔊 Audio Yuklandi:</span><audio controls style="width:100%; display:block; margin-top:4px;"><source src="${data.url}"></audio></div><br>`;
+      }
+      
+      const qEl = document.getElementById('cell-question');
+      qEl.innerHTML += html;
+      input.value = ''; // clear
+      showToast("✓ Media savolga qo'shildi");
+    } else {
+      showToast('⚠ Media yuklashda xato');
+    }
+  } catch(e) {
+    showToast('⚠ Media yuklashda xato');
+  }
+}
+
+async function saveQuestions() {
+  const payload = editorCats.filter(c => c.name.trim()).map(c => ({
+    name: c.name.trim(),
+    questions: c.questions.map(q => ({
+      points: q.points,
+      question: (q.question||'').trim(),
+      answer: (q.answer||'').trim(),
+      hint: q.hint?.trim() || null,
+      media: q.media || null
+    })).filter(q => q.question && q.answer)
+  })).filter(c => c.questions.length);
+
+  if (!payload.length) { showToast('⚠ Kamida 1 to\'liq savol kiriting'); return; }
+  
+  // Save preset to backend
+  try {
+     await fetch('/api/save-presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host: username, categories: payload })
+     });
+  } catch(e) {}
+
+  send({ type: 'set_questions', data: { categories: payload } });
+  closeSetupModal();
+  showToast('✓ Savollar saqlandi');
+}
+
+// Custom Paste handling
+document.addEventListener('paste', async (e) => {
+  const target = e.target;
+  let editable = target;
+  
+  while (editable && editable.nodeType === 1 && editable.getAttribute('contenteditable') !== 'true') {
+     if(editable.parentElement) editable = editable.parentElement;
+     else break;
+  }
+  
+  if (editable && editable.getAttribute('contenteditable') === 'true') {
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (const item of items) {
+      if (item.type.indexOf('image/') === 0) {
+        e.preventDefault(); 
+        const file = item.getAsFile();
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+          const res = await fetch('/api/upload-media', { method: 'POST', body: formData });
+          if(res.ok) {
+            const data = await res.json();
+            const imgHTML = `<img src="${data.url}" style="max-width:100%; max-height:200px; display:block; margin:8px 0; border:1px solid var(--neon-purple); border-radius:2px;" />`;
+            document.execCommand('insertHTML', false, imgHTML);
+          } else {
+             showToast('⚠ Rasm yuklashda xatolik yuz berdi');
+          }
+        } catch(err) {
+          showToast('⚠ Rasm yuklashda xatolik yuz berdi');
+        }
+      }
+    }
+  }
+});
+
+// ====== CHAT ======
+function addChat(data) {
+  const msgs = document.getElementById('chat-messages');
+  const cls = data.role === 'host' ? 'host' : data.role === 'system' ? 'system' : '';
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  div.innerHTML = `<span class="who ${cls}">${data.username}</span>: ${escH(data.text)}`;
+  msgs.appendChild(div);
+  if (msgs.children.length > 50) msgs.removeChild(msgs.firstChild);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// ====== GAME ENDED ======
+function showEnded(data) {
+  const scores = data.final_scores || [];
+  document.getElementById('ended-scores').innerHTML = scores.map((s,i) =>
+    `<div class="score-row" style="animation-delay:${i*0.1}s">
+      <div class="score-rank">${i+1}</div>
+      <div class="score-name">${escH(s.username)}</div>
+      <div class="score-val">${s.score}</div>
+    </div>`
+  ).join('');
+  document.getElementById('ended-overlay').classList.add('show');
+}
+
+// ====== UTILS ======
+function copyRoomCode() {
+  navigator.clipboard.writeText(roomCode).then(() => showToast('✓ Kod nusxalandi: ' + roomCode));
+}
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+function escH(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>
