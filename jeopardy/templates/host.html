@@ -933,22 +933,48 @@
 
 <!-- SETUP MODAL (Jeopardy Board Style) -->
 <div class="modal-overlay" id="setup-modal">
-  <div class="modal" style="max-width: 90vw; width: 800px; max-height: 90vh;">
+  <div class="modal" style="max-width: 95vw; width: 1000px; max-height: 95vh;">
     <div class="modal-header">
       <div class="modal-title">Savollarni Sozlash</div>
-      <div>
-        <button class="modal-btn cancel" onclick="addCategory()" style="padding:4px 8px;font-size:10px">+ Kategoriya Qo'shish</button>
-        <button class="modal-close" onclick="closeSetupModal()" style="margin-left:16px;">✕</button>
+      <div style="display:flex; gap:12px; align-items:center;">
+        <button class="modal-btn cancel" onclick="clearAllEditor()" style="padding:4px 8px;font-size:10px; border-color:var(--neon-pink); color:var(--neon-pink)">🗑 Tozalash</button>
+        <button class="modal-btn cancel" onclick="addCategory()" style="padding:4px 8px;font-size:10px">+ Kategoriya</button>
+        <button class="modal-close" onclick="closeSetupModal()">✕</button>
       </div>
     </div>
-    <div class="modal-body" style="background:#0a0a18;">
-      <div id="editor-board" style="display:flex; gap:8px; overflow-x:auto;">
+    <div class="modal-body" style="background:#0a0a18; padding:12px; display:flex; flex-direction:column; gap:12px;">
+      <!-- TOP BAR: AUTH & SAVE -->
+      <div style="display:flex; gap:12px; align-items:flex-end; background:rgba(255,255,255,0.03); padding:12px; border-radius:4px; border:1px solid var(--dark-border);">
+         <div class="qe-field" style="margin:0; flex:1;">
+           <label>Host Paroli (Saqlash va Yuklash uchun)</label>
+           <input type="password" id="host-password" placeholder="Parol kiriting..." style="width:100%;" oninput="sessionStorage.setItem('jeopardy_host_pass', this.value)">
+         </div>
+         <div class="qe-field" style="margin:0; flex:1;">
+           <label>To'plam nomi (Masalan: Sport, Tarix)</label>
+           <div style="display:flex; gap:4px;">
+             <input type="text" id="pack-name" placeholder="Yangi to'plam nomi..." style="flex:1;">
+             <button class="modal-btn primary" onclick="listPacks()" style="padding:0 12px; font-size:11px;">🔍 To'plamlar</button>
+           </div>
+         </div>
+         <button class="modal-btn" onclick="saveQuestions()" style="background:var(--neon-green); color:#000; border:none; height:38px; padding:0 20px;">💾 SAQLASH</button>
+      </div>
+
+      <div id="packs-list-area" style="display:none; background:rgba(0,0,0,0.5); padding:12px; border:1px solid var(--neon-cyan); border-radius:4px;">
+        <div style="font-size:12px; color:var(--neon-cyan); margin-bottom:8px; display:flex; justify-content:space-between;">
+          <span>Sizning saqlangan to'plamlaringiz:</span>
+          <a href="#" onclick="document.getElementById('packs-list-area').style.display='none'" style="color:var(--text-dim); text-decoration:none;">Yopish</a>
+        </div>
+        <div id="packs-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:8px;"></div>
+      </div>
+
+      <div id="editor-board" style="display:flex; gap:8px; overflow-x:auto; flex:1; padding-bottom:8px;">
         <!-- Categories and items will be loaded here -->
       </div>
     </div>
     <div class="modal-footer">
-      <button class="modal-btn cancel" onclick="closeSetupModal()">Bekor</button>
-      <button class="modal-btn primary" onclick="saveQuestions()">Saqlash va Qo'llash</button>
+      <div style="font-size:11px; color:var(--text-dim); flex:1;">💡 Har bir host nomi uchun bitta parol ishlatiladi. To'plam nomi orqali turli o'yinlarni saqlash mumkin.</div>
+      <button class="modal-btn cancel" onclick="closeSetupModal()">Bekor qilish</button>
+      <button class="modal-btn primary" onclick="applyQuestionsToGame()" style="min-width:180px;">O'YINDA QO'LLASH (Start)</button>
     </div>
   </div>
 </div>
@@ -1022,10 +1048,11 @@ let username = sessionStorage.getItem('jeopardy_username') || 'Host';
 let reconnectAttempts = 0;
 let gameState = 'waiting';
 let players = {};
-let categories = []; // local editor state
+let editorCats = []; // local editor state
 let timerMax = 30;
 let currentPhase = 'question'; // question | answer
 let adjustTarget = null;
+let activeQ = null; // Track currently open question
 
 // ====== INIT ======
 document.getElementById('hdr-room').textContent = roomCode;
@@ -1112,7 +1139,12 @@ function applyFullState(data) {
     document.getElementById('btn-end').style.display = 'block';
   }
   // Active question
-  if (data.current_question) showQuestion(data.current_question);
+  if (data.current_question) {
+    activeQ = { category: data.current_question.category, points: data.current_question.points };
+    showQuestion(data.current_question);
+  } else {
+    activeQ = null;
+  }
 }
 
 // ====== PLAYERS ======
@@ -1189,36 +1221,46 @@ function applyBoard(data) {
   grid.style.gridTemplateColumns = `repeat(${numCols}, 1fr)`;
 
   const board = data.board;
-  // Find all point values
   const allPts = new Set();
   cats.forEach(c => (board[c] || []).forEach(q => allPts.add(q.points)));
   const pts = [...allPts].sort((a,b) => a-b);
 
-  let html = cats.map(c => `<div class="board-header">${c}</div>`).join('');
+  let html = cats.map(c => `<div class="board-header">${escH(c)}</div>`).join('');
   pts.forEach(p => {
     cats.forEach(c => {
       const q = (board[c] || []).find(x => x.points === p);
       if (!q) { html += `<div></div>`; return; }
       const usedClass = q.status === 'used' ? 'used' : '';
+      const activeClass = (activeQ && activeQ.category === c && activeQ.points === p) ? 'active' : '';
       const mediaClass = q.has_media ? 'has-media' : '';
-      const click = q.status !== 'used' ? `onclick="selectQuestion('${c}',${p})"` : '';
-      html += `<div class="board-cell ${usedClass} ${mediaClass}" id="cell-${c}-${p}" ${click}>${p}</div>`;
+      const click = q.status !== 'used' ? `onclick="selectQuestion(\`${c.replace(/`/g, '\\`')}\`,${p})"` : '';
+      html += `<div class="board-cell ${usedClass} ${activeClass} ${mediaClass}" id="bcell-${escId(c)}-${p}" ${click}>${q.status==='used'?'':p}</div>`;
     });
   });
   grid.innerHTML = html;
 }
 
 function markCellUsed(cat, pts) {
-  const cell = document.getElementById(`cell-${cat}-${pts}`);
+  const cell = document.getElementById(`bcell-${escId(cat)}-${pts}`);
   if (cell) {
     cell.classList.add('used');
+    cell.classList.remove('active');
     cell.onclick = null;
     cell.textContent = '';
   }
 }
 
+function setActiveCell(cat, pts) {
+  document.querySelectorAll('.board-cell.active').forEach(c => c.classList.remove('active'));
+  const cell = document.getElementById(`bcell-${escId(cat)}-${pts}`);
+  if (cell) cell.classList.add('active');
+}
+
 // ====== QUESTION ======
 function showQuestion(data) {
+  activeQ = { category: data.category, points: data.points };
+  setActiveCell(data.category, data.points);
+  
   document.getElementById('no-question').style.display = 'none';
   document.getElementById('question-panel').style.display = 'flex';
   document.getElementById('question-panel').style.flexDirection = 'column';
@@ -1254,6 +1296,7 @@ function showQuestion(data) {
 }
 
 function closeQuestion(data) {
+  activeQ = null;
   markCellUsed(data.category, data.points);
   // Show answer
   document.getElementById('q-answer-text').innerHTML = data.answer;
@@ -1346,17 +1389,13 @@ let editorCats = [];
 let editingCell = null; // { catIdx, qIdx }
 
 async function openSetupModal() {
+  document.getElementById('host-password').value = sessionStorage.getItem('jeopardy_host_pass') || '';
+  
   if (!editorCats.length) {
-    try {
-      const res = await fetch('/api/load-presets/' + username);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.categories && data.categories.length) {
-          editorCats = data.categories;
-        }
-      }
-    } catch(e) {}
+    // Try to load latest pack silently
+    await loadPackFromServer();
   }
+  
   if (!editorCats.length) {
     editorCats = [1,2,3,4,5].map(i => ({
       name: `Kategoriya ${i}`,
@@ -1387,7 +1426,7 @@ function renderEditorBoard() {
            </div>
         `).join('')}
       </div>
-      <button onclick="addCellQuestion(${catIdx})" style="background:none; border:1px dashed var(--dark-border); color:var(--text-dim); padding:6px; cursor:pointer; border-radius:2px; margin-top:2px; font-size:12px; transition:color 0.2s;" onmouseover="this.style.color='var(--neon-cyan)'" onmouseout="this.style.color='var(--text-dim)'">+ savol qator</button>
+      <button onclick="addCellQuestion(${catIdx})" style="background:none; border:1px dashed var(--dark-border); color:var(--text-dim); padding:6px; cursor:pointer; border-radius:2px; margin-top:2px; font-size:12px; transition:color 0.2s;" onmouseover="this.style.color='var(--neon-cyan)'" onmouseout="this.style.color='var(--text-dim)'">+ qator</button>
     </div>
   `).join('');
 }
@@ -1413,6 +1452,18 @@ function addCellQuestion(catIdx) {
   if (curr.length > 0) pts = curr[curr.length-1].points + 100;
   curr.push({ points: pts, question: '', answer: '', hint: '', media: null });
   renderEditorBoard();
+}
+
+function clearAllEditor() {
+  if (confirm("Barcha katakchalarni tozalab yuborasizmi?")) {
+    editorCats = [1,2,3,4,5].map(i => ({
+      name: `Kategoriya ${i}`,
+      questions: [100,200,300,400,500].map(p => ({ points: p, question: '', answer: '', hint: '', media: null }))
+    }));
+    renderEditorBoard();
+    document.getElementById('pack-name').value = '';
+    showToast('✓ Editor tozalandi');
+  }
 }
 
 function openCellModal(catIdx, qIdx) {
@@ -1444,6 +1495,118 @@ function deleteCellQuestion() {
     closeCellModal();
     renderEditorBoard();
   }
+}
+
+async function listPacks() {
+  const password = document.getElementById('host-password').value;
+  if (!password) { showToast('⚠ Oldin parolni kiriting'); return; }
+  
+  try {
+    const res = await fetch('/api/list-packs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host: username, password })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const grid = document.getElementById('packs-grid');
+      document.getElementById('packs-list-area').style.display = 'block';
+      if (!data.packs.length) {
+        grid.innerHTML = '<div style="grid-column:1/-1; color:var(--text-dim);">Hali to\'plamlar yo\'q</div>';
+      } else {
+        grid.innerHTML = data.packs.map(p => `
+          <div onclick="loadPackFromServer('${p.replace(/'/g, "\\'")}')" 
+               style="background:rgba(0,255,245,0.1); border:1px solid var(--neon-cyan); padding:8px; border-radius:2px; cursor:pointer; font-size:12px; text-align:center; transition:0.2s;"
+               onmouseover="this.style.background='var(--neon-cyan)'; this.style.color='#000'">
+            ${escH(p)}
+          </div>
+        `).join('');
+      }
+    } else {
+      const err = await res.json();
+      showToast('⚠ ' + (err.detail || 'Xatolik'));
+    }
+  } catch(e) { showToast('⚠ Serverga ulanib bo\'lmadi'); }
+}
+
+async function loadPackFromServer(packName = '') {
+  const password = document.getElementById('host-password').value;
+  if (!password && packName) { showToast('⚠ Parol kerak'); return; }
+  if (!password) return;
+
+  try {
+    const res = await fetch('/api/load-presets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host: username, password, pack_name: packName })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.categories && data.categories.length) {
+        editorCats = data.categories;
+        document.getElementById('pack-name').value = data.pack_name || '';
+        renderEditorBoard();
+        if(packName) {
+           showToast(`✓ '${data.pack_name}' yuklandi`);
+           document.getElementById('packs-list-area').style.display = 'none';
+        }
+      }
+    }
+  } catch(e) {}
+}
+
+async function saveQuestions() {
+  const password = document.getElementById('host-password').value;
+  const packName = document.getElementById('pack-name').value.trim() || 'Standart';
+  
+  if (!password) { showToast('⚠ Saqlash uchun parol kiriting!'); return; }
+
+  const payload = editorCats.filter(c => c.name.trim()).map(c => ({
+    name: c.name.trim(),
+    questions: c.questions.map(q => ({
+      points: q.points,
+      question: (q.question||'').trim(),
+      answer: (q.answer||'').trim(),
+      hint: q.hint?.trim() || null,
+      media: q.media || null
+    })).filter(q => q.question && q.answer)
+  })).filter(c => c.questions.length);
+
+  if (!payload.length) { showToast('⚠ Kamida 1 to\'liq savol kiriting'); return; }
+  
+  try {
+    const res = await fetch('/api/save-presets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host: username, password, pack_name: packName, categories: payload })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      showToast('✓ ' + data.message);
+    } else {
+      const err = await res.json();
+      showToast('⚠ ' + (err.detail || 'Saqlab bo\'lmadi'));
+    }
+  } catch(e) { showToast('⚠ Xatolik yuz berdi'); }
+}
+
+function applyQuestionsToGame() {
+  const payload = editorCats.filter(c => c.name.trim()).map(c => ({
+    name: c.name.trim(),
+    questions: c.questions.map(q => ({
+      points: q.points,
+      question: (q.question||'').trim(),
+      answer: (q.answer||'').trim(),
+      hint: q.hint?.trim() || null,
+      media: q.media || null
+    })).filter(q => q.question && q.answer)
+  })).filter(c => c.questions.length);
+
+  if (!payload.length) { showToast('⚠ Kamida 1 to\'liq savol kiriting'); return; }
+
+  send({ type: 'set_questions', data: { categories: payload } });
+  closeSetupModal();
+  showToast('✓ Savollar o\'yinga qo\'shildi');
 }
 
 async function uploadCellMedia(input) {
@@ -1576,6 +1739,7 @@ function showToast(msg) {
   setTimeout(() => t.remove(), 3000);
 }
 function escH(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escId(s) { return String(s||'').replace(/[^a-zA-Z0-9]/g,'_'); } // Safe ID for DOM
 </script>
 </body>
 </html>

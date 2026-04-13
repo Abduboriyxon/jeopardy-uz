@@ -520,8 +520,24 @@ PRESETS_FILE = BASE_DIR / "presets.json"
 
 def load_presets():
     if PRESETS_FILE.exists():
-        with open(PRESETS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(PRESETS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                # Migratsiya: Eski list formatini yangi dict formatiga o'tkazish
+                migrated = False
+                for host in list(data.keys()):
+                    if isinstance(data[host], list):
+                        data[host] = {
+                            "password": "123", # Eski xisoblar uchun vaqtinchalik parol
+                            "packs": [{"name": "Eski Savollar", "categories": data[host]}]
+                        }
+                        migrated = True
+                if migrated:
+                    save_presets(data)
+                return data
+        except Exception as e:
+            print(f"Preset yuklashda xato: {e}")
+            return {}
     return {}
 
 def save_presets(presets):
@@ -534,17 +550,78 @@ from fastapi import Request
 async def save_host_presets(request: Request):
     data = await request.json()
     host = data.get("host")
+    password = data.get("password")
+    pack_name = data.get("pack_name", "Standart")
     categories = data.get("categories", [])
-    if host:
-        presets = load_presets()
-        presets[host] = categories
-        save_presets(presets)
-    return {"status": "ok"}
+    
+    if not host or not password:
+        raise HTTPException(400, "Host nomi va paroli majburiy")
 
-@app.get("/api/load-presets/{host}")
-async def load_host_presets(host: str):
     presets = load_presets()
-    return {"categories": presets.get(host, [])}
+    if host in presets:
+        if presets[host]["password"] != password:
+            raise HTTPException(403, "Noto'g'ri parol. Bu host nomi band.")
+    else:
+        presets[host] = {"password": password, "packs": []}
+
+    # Update or add pack
+    packs = presets[host]["packs"]
+    existing = next((p for p in packs if p["name"] == pack_name), None)
+    if existing:
+        existing["categories"] = categories
+    else:
+        packs.append({"name": pack_name, "categories": categories})
+
+    save_presets(presets)
+    return {"status": "ok", "message": f"'{pack_name}' to'plami saqlandi"}
+
+@app.post("/api/list-packs")
+async def list_host_packs(request: Request):
+    data = await request.json()
+    host = data.get("host")
+    password = data.get("password")
+    
+    if not host: return {"packs": []}
+    
+    presets = load_presets()
+    if host not in presets:
+        return {"packs": []}
+    
+    if presets[host]["password"] != password:
+        raise HTTPException(403, "Noto'g'ri parol")
+        
+    return {"packs": [p["name"] for p in presets[host]["packs"]]}
+
+@app.post("/api/load-presets")
+async def load_host_presets(request: Request):
+    data = await request.json()
+    host = data.get("host")
+    password = data.get("password")
+    pack_name = data.get("pack_name")
+    
+    if not host or not password:
+        raise HTTPException(400, "Host va parol kerak")
+        
+    presets = load_presets()
+    if host not in presets:
+        raise HTTPException(404, "Host topilmadi")
+        
+    if presets[host]["password"] != password:
+        raise HTTPException(403, "Noto'g'ri parol")
+        
+    packs = presets[host]["packs"]
+    if not packs:
+        return {"categories": []}
+        
+    if not pack_name:
+        # Load the latest or first pack if name not specified
+        return {"categories": packs[-1]["categories"], "pack_name": packs[-1]["name"]}
+        
+    target = next((p for p in packs if p["name"] == pack_name), None)
+    if not target:
+        raise HTTPException(404, "To'plam topilmadi")
+        
+    return {"categories": target["categories"], "pack_name": target["name"]}
 
 
 @app.on_event("startup")
