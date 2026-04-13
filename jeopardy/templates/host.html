@@ -1385,7 +1385,6 @@ function confirmAdjust(sign) {
 }
 
 // ====== SETUP MODAL ======
-let editorCats = []; 
 let editingCell = null; // { catIdx, qIdx }
 
 async function openSetupModal() {
@@ -1637,34 +1636,6 @@ async function uploadCellMedia(input) {
   } catch(e) {
     showToast('⚠ Media yuklashda xato');
   }
-}
-
-async function saveQuestions() {
-  const payload = editorCats.filter(c => c.name.trim()).map(c => ({
-    name: c.name.trim(),
-    questions: c.questions.map(q => ({
-      points: q.points,
-      question: (q.question||'').trim(),
-      answer: (q.answer||'').trim(),
-      hint: q.hint?.trim() || null,
-      media: q.media || null
-    })).filter(q => q.question && q.answer)
-  })).filter(c => c.questions.length);
-
-  if (!payload.length) { showToast('⚠ Kamida 1 to\'liq savol kiriting'); return; }
-  
-  // Save preset to backend
-  try {
-     await fetch('/api/save-presets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host: username, categories: payload })
-     });
-  } catch(e) {}
-
-  send({ type: 'set_questions', data: { categories: payload } });
-  closeSetupModal();
-  showToast('✓ Savollar saqlandi');
 }
 
 // Custom Paste handling
